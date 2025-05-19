@@ -1,6 +1,8 @@
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.List;
 
@@ -25,7 +27,7 @@ public class RoomManagementPanel extends JPanel {
 
         // Form and Buttons
         if (!viewOnly) {
-            JPanel formPanel = new JPanel(new GridLayout(6, 2, 10, 10));
+            JPanel formPanel = new JPanel(new GridLayout(5, 2, 10, 10));
             formPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
             JTextField roomNumberField = new JTextField();
@@ -49,29 +51,34 @@ public class RoomManagementPanel extends JPanel {
                             Double.parseDouble(priceField.getText()), (String) statusCombo.getSelectedItem());
                     roomService.addRoom(room);
                     refreshTable();
-                } catch (SQLException ex) {
+                } catch (SQLException | NumberFormatException ex) {
                     JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage());
                 }
             });
             formPanel.add(addButton);
 
-            JButton updateStatusButton = new JButton("Update Status");
-            updateStatusButton.addActionListener(e -> {
+            JButton updateButton = new JButton("Update");
+            updateButton.addActionListener(e -> {
                 int selectedRow = table.getSelectedRow();
                 if (selectedRow >= 0) {
                     try {
                         int roomId = (int) tableModel.getValueAt(selectedRow, 0);
+                        String newRoomNumber = roomNumberField.getText();
+                        String newType = typeField.getText();
+                        double newPrice = Double.parseDouble(priceField.getText());
                         String newStatus = (String) statusCombo.getSelectedItem();
-                        roomService.updateRoomStatus(roomId, newStatus);
+                        // Cập nhật toàn bộ thông tin phòng
+                        Room updatedRoom = new Room(roomId, newRoomNumber, newType, newPrice, newStatus);
+                        updateRoomInDatabase(roomId, updatedRoom);
                         refreshTable();
-                    } catch (SQLException ex) {
+                    } catch (SQLException | NumberFormatException ex) {
                         JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage());
                     }
                 } else {
-                    JOptionPane.showMessageDialog(this, "Please select a room!");
+                    JOptionPane.showMessageDialog(this, "Please select a room to update!");
                 }
             });
-            formPanel.add(updateStatusButton);
+            formPanel.add(updateButton);
 
             add(formPanel, BorderLayout.SOUTH);
         }
@@ -90,6 +97,19 @@ public class RoomManagementPanel extends JPanel {
             }
         } catch (SQLException e) {
             JOptionPane.showMessageDialog(this, "Error: " + e.getMessage());
+        }
+    }
+
+    private void updateRoomInDatabase(int id, Room room) throws SQLException {
+        String sql = "UPDATE rooms SET room_number = ?, type = ?, price = ?, status = ? WHERE id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, room.getRoomNumber());
+            stmt.setString(2, room.getType());
+            stmt.setDouble(3, room.getPrice());
+            stmt.setString(4, room.getStatus());
+            stmt.setInt(5, id);
+            stmt.executeUpdate();
         }
     }
 }
